@@ -1,0 +1,78 @@
+# Run this workflow manually from GitHub to destroy Development environment
+name: "Destroy Development environment"
+run-name: ${{ github.actor}} is running a Terraform destroy on Dev 🔥
+on:
+  workflow_dispatch:
+
+permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+env:
+  TF_LOG: INFO
+  AWS_REGION: ${{ vars.TF_VAR_REGION }}
+  AWS_BUCKET_NAME: ${{ secrets.TF_STATE_BUCKET_NAME }}
+  AWS_BUCKET_KEY_NAME: ${{ secrets.TF_STATE_BUCKET_KEY }}
+
+jobs:
+  destroy_development:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./build
+    environment: 
+      name: dev
+    env:
+      TF_VAR_Region: ${{ vars.TF_VAR_REGION }}
+      TF_VAR_AZ01: ${{ vars.TF_VAR_AZ01 }}
+      TF_VAR_AZ02: ${{ vars.TF_VAR_AZ02 }}
+      TF_VAR_PublicIP: ${{ vars.TF_VAR_PUBLICIP }}
+      TF_VAR_Prefix: ${{ vars.TF_VAR_PREFIX }}
+      TF_VAR_SolTag: ${{ vars.TF_VAR_SOLTAG }}
+      TF_VAR_GitHubRepo: ${{ vars.TF_VAR_GITHUBREPO }}
+      TF_VAR_EnvCode: ${{ vars.TF_VAR_ENVCODE }}
+      TF_VAR_EnvTag: ${{ vars.TF_VAR_ENVTAG }}
+      TF_VAR_VPCCIDR: ${{ vars.TF_VAR_VPCCIDR }}
+      TF_VAR_FQDN: ${{ vars.TF_VAR_FQDN }}
+      TF_VAR_ECRRepo: ${{ vars.TF_VAR_ECRREPO }}
+      TF_VAR_ImageTag: ${{ vars.TF_VAR_IMAGETAG }}
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.TF_VAR_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHub-Actions-OIDC-TERRAFORM 
+
+      - name: Terraform Setup
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.1
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt -check -no-color
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_NAME }}" -backend-config="key=${{ secrets.TF_STATE_BUCKET_KEY }}" -backend-config="region=${{ vars.TF_VAR_REGION }}" -backend-config="encrypt=true" -backend-config="dynamodb_table=${{ secrets.TF_STATE_DYNAMODB_TABLE }}" -input=false
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Run Terraform plan
+        id: plan
+        run: terraform plan -destroy -no-color -input=false
+        continue-on-error: true
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -input=false

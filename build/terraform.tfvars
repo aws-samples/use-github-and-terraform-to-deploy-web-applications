@@ -1,0 +1,1 @@
+# This file is not used. Set variables in GitHub. Use bootstrap\pipelinebuild\githubresources.tf to create them!

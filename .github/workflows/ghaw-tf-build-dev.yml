@@ -1,0 +1,131 @@
+name: "Review and deploy Development environment"
+run-name: ${{ github.actor}} is running a Terraform review and deploy to Dev 🚀
+on:
+  push:
+    branches:
+      - dev
+permissions:
+      # id-token write required for OIDC, contents read required for actions/checkout
+      id-token: write
+      contents: read
+env:
+   TF_LOG: INFO
+   AWS_REGION: ${{ vars.TF_VAR_REGION }}
+   AWS_BUCKET_NAME: ${{ secrets.TF_STATE_BUCKET_NAME }}
+   AWS_BUCKET_KEY_NAME: ${{ secrets.TF_STATE_BUCKET_KEY }}
+
+jobs:
+  release_to_dev:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./build
+    environment: 
+      name: dev
+    env:
+      TF_VAR_Region: ${{ vars.TF_VAR_REGION }}
+      TF_VAR_AZ01: ${{ vars.TF_VAR_AZ01 }}
+      TF_VAR_AZ02: ${{ vars.TF_VAR_AZ02 }}
+      TF_VAR_PublicIP: ${{ vars.TF_VAR_PUBLICIP }}
+      TF_VAR_Prefix: ${{ vars.TF_VAR_PREFIX }}
+      TF_VAR_SolTag: ${{ vars.TF_VAR_SOLTAG }}
+      TF_VAR_GitHubRepo: ${{ vars.TF_VAR_GITHUBREPO }}
+      TF_VAR_EnvCode: ${{ vars.TF_VAR_ENVCODE }}
+      TF_VAR_EnvTag: ${{ vars.TF_VAR_ENVTAG }}
+      TF_VAR_VPCCIDR: ${{ vars.TF_VAR_VPCCIDR }}
+      TF_VAR_FQDN: ${{ vars.TF_VAR_FQDN }}
+      TF_VAR_ECRRepo: ${{ vars.TF_VAR_ECRREPO }}
+      TF_VAR_ImageTag: ${{ vars.TF_VAR_IMAGETAG }}
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.TF_VAR_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHub-Actions-OIDC-TERRAFORM 
+
+      - name: Terraform Setup
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.1
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt -check -no-color
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_NAME }}" -backend-config="key=${{ secrets.TF_STATE_BUCKET_KEY }}" -backend-config="region=${{ vars.TF_VAR_REGION }}" -backend-config="encrypt=true" -backend-config="dynamodb_table=${{ secrets.TF_STATE_DYNAMODB_TABLE }}" -input=false
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -input=false
+        continue-on-error: true
+
+      - name: Terraform Plan Status 
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Terraform Apply
+        id: base
+        run: terraform apply -auto-approve -input=false
+
+      - name: Check ECS image exists
+        id: ecsimage
+        run: |
+          if aws ecr describe-images --repository-name ${{ vars.TF_VAR_ECRREPO }} --image-ids imageTag=${{ vars.TF_VAR_IMAGETAG }} >/dev/null 2>&1
+          then
+            echo "image_exists=true" >> "$GITHUB_ENV"
+          else
+            echo "image_exists=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check for changes in ./appsrc
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            appsrc:
+              - 'build/appsrc/**'
+
+      - name: Replace placeholder in Program.cs
+        if: steps.filter.outputs.appsrc == 'true' || env.image_exists == 'false'
+        run: sed -i 's/\$Environment/${{ vars.TF_VAR_ENVTAG }}/g' ./appsrc/Program.cs
+
+      # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+      - name: Setup .NET
+        if: steps.filter.outputs.appsrc == 'true' || env.image_exists == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build .NET
+        if: steps.filter.outputs.appsrc == 'true' || env.image_exists == 'false'
+        run: dotnet publish ./appsrc -c Release --no-restore --property:PublishDir=${{ github.workspace }}/build/appbuild
+
+      - name: Login to Amazon ECR
+        if: steps.filter.outputs.appsrc == 'true' || env.image_exists == 'false'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push docker image to Amazon ECR
+        if: steps.filter.outputs.appsrc == 'true' || env.image_exists == 'false'
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.TF_VAR_ECRREPO }}
+          IMAGE_TAG: ${{ vars.TF_VAR_IMAGETAG }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f ./appsrc/Dockerfile ./appbuild
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Print Web App URL in Job Summary
+        run: echo "${{ vars.TF_VAR_ENVTAG }} environment URL http://$(terraform output -raw mswebapp_alb_dns_name) :rocket:" >> $GITHUB_STEP_SUMMARY
