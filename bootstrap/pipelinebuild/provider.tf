@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "github" {
-  owner = "bubblesprite"
+  owner = "MyGithubOrg"
 }
 
 provider "aws" {

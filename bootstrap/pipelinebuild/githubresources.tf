@@ -147,13 +147,19 @@ resource "github_actions_environment_secret" "INFRACOST_API_KEY" {
 locals {
   # Declare GitHub Environments variables
   environment_variables_common = {
+    # Deployment region e.g. eu-west-1
     TF_VAR_REGION     = "<FILLMEIN>"
+    # Deployment Availability Zone 1 e.g. eu-west-1a
     TF_VAR_AZ01       = "<FILLMEIN>"
+    # Deployment Availability Zone 2 e.g. eu-west-1b
     TF_VAR_AZ02       = "<FILLMEIN>"
+    # The Public IP address from which the web application will be accessed e.g. x.x.x.x/32
     TF_VAR_PUBLICIP   = "<FILLMEIN>"
+    # A prefix appended to the name of all AWS-created resources e.g. ghablog WARNING: use lowercase character only and no symbols
     TF_VAR_PREFIX     = "<FILLMEIN>"
     TF_VAR_SOLTAG     = "AWS-GHA-TF-MSFT"
     TF_VAR_GITHUBREPO = format("%s%s%s", var.GitHubOrg, "/", var.GitHubRepo)
+    # The first two octets of the CIDR IP address range e.g. 10.0
     TF_VAR_VPCCIDR    = "<FILLMEIN>"
     TF_VAR_ECRREPO    = "mswebapp"
     TF_VAR_IMAGETAG   = "1.0.0"
