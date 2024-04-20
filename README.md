@@ -1,11 +1,8 @@
-## My Project
+## How to use GitHub Actions and Terraform to deploy a Microsoft Web Application
 
-TODO: Fill this README out!
+**STAGING IN PROGRESS**
 
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+This repository contains deployment templates used in the *How to use GitHub Actions and Terraform to deploy a Microsoft Web Application* Amazon Web Services blog post.
 
 ## Security
 
@@ -14,4 +11,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
-
