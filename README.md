@@ -6,15 +6,15 @@ This repository contains deployment templates used in the *How to use GitHub Act
 
 ## Design
 
-# Pipeline Components
+### Pipeline Components
 
 ![pipeline-components](img/pipeline.png)
 
-# Workflow logic
+### Workflow logic
 
 ![workflow-logic](img/workflowlogic.png)
 
-# Sample Application 
+### Sample Application 
 
 ![sample-application](img/sampleapp.png)
 
