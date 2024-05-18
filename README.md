@@ -1,17 +1,17 @@
 ## How to use GitHub Actions and Terraform to deploy a Microsoft Web Application
 
-**STAGING IN PROGRESS**
-
 This repository contains deployment templates used in the [How to use GitHub Actions and Terraform to deploy a Microsoft Web Application](https://aws.amazon.com/blogs/modernizing-with-aws/automate-microsoft-web-application-deployments-with-github-actions-and-terraform/) Amazon Web Services blog post.
 
 ## Design
 
 ### Pipeline Components
 This code demonstrates how how GitHub Actions and Terraform can automate the deployment of your AWS workloads across multiple environments.
+
 ![pipeline-components](img/pipeline.png)
 
 ### Workflow logic
 The following GitHub action workflow logic will be deployed.
+
 ![workflow-logic](img/workflowlogic.png)
 
 ### Sample Workload
